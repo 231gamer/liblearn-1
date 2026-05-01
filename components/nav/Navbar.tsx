@@ -4,7 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/auth/actions'
 
-export default function Navbar({ email }: { email: string }) {
+export default function Navbar({
+  email,
+  username,
+}: {
+  email: string
+  username: string | null
+}) {
   const pathname = usePathname()
 
   const links = [
@@ -12,6 +18,8 @@ export default function Navbar({ email }: { email: string }) {
     { href: '/quiz', label: 'Quizzes' },
     { href: '/leaderboard', label: 'Leaderboard' },
   ]
+
+  const displayName = username ? `@${username}` : email
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800">
@@ -39,9 +47,14 @@ export default function Navbar({ email }: { email: string }) {
           ))}
         </div>
 
-        {/* User + Logout */}
+        {/* User + Profile + Logout */}
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400 hidden md:block">{email}</span>
+          <Link
+            href="/profile"
+            className="text-sm text-gray-400 hover:text-emerald-400 transition hidden md:block"
+          >
+            {displayName}
+          </Link>
           <form action={logout}>
             <button
               type="submit"

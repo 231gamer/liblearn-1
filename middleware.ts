@@ -2,9 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,9 +16,7 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -29,36 +25,50 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired — required for Server Components
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
-  // Define protected routes
-  const protectedRoutes = ['/dashboard', '/quiz', '/leaderboard', '/profile']
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  )
-
-  // Define auth routes (logged-in users shouldn't see these)
+  // Route categories
+  const protectedRoutes = ['/dashboard', '/quiz', '/leaderboard', '/profile', '/admin']
   const authRoutes = ['/auth/login', '/auth/signup']
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
+  const setupRoute = '/profile/setup'
 
-  // If not logged in and trying to access a protected route → redirect to login
+  const isProtectedRoute = protectedRoutes.some((r) => pathname.startsWith(r))
+  const isAuthRoute = authRoutes.some((r) => pathname.startsWith(r))
+  const isSetupRoute = pathname === setupRoute
+
+  // Not logged in → redirect to login
   if (!user && isProtectedRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/auth/login'
-    redirectUrl.searchParams.set('error', 'Please+sign+in+to+continue')
-    return NextResponse.redirect(redirectUrl)
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/login'
+    url.searchParams.set('error', 'Please+sign+in+to+continue')
+    return NextResponse.redirect(url)
   }
 
-  // If logged in and trying to access auth pages → redirect to dashboard
+  // Logged in → redirect away from auth pages
   if (user && isAuthRoute) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
-    return NextResponse.redirect(redirectUrl)
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  // Logged in but no username → force setup
+  // (skip if already on setup page to avoid redirect loop)
+  if (user && isProtectedRoute && !isSetupRoute) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile?.username) {
+      const url = request.nextUrl.clone()
+      url.pathname = setupRoute
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
@@ -66,13 +76,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths EXCEPT:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public folder files
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

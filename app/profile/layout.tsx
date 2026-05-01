@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/nav/Navbar'
 
-export default async function QuizLayout({
+export default async function ProfileLayout({
   children,
 }: {
   children: React.ReactNode
