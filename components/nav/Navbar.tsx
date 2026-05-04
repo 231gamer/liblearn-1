@@ -60,14 +60,14 @@ export default function Navbar({
           >
             {displayName}
           </Link>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 hover:bg-gray-800 rounded-lg transition-all duration-200 active:scale-95"
-            >
-              Logout
-            </button>
-          </form>
+<form action={logout}>
+  <button
+    type="submit"
+    className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-red-400 border border-gray-700 hover:border-red-500/50 hover:bg-red-500/10 rounded-lg transition-all duration-200 active:scale-95"
+  >
+    Logout
+  </button>
+</form>
         </div>
 
         {/* Mobile: Hamburger */}
@@ -125,14 +125,14 @@ export default function Navbar({
           </Link>
 
           {/* Logout */}
-          <form action={logout}>
-            <button
-              type="submit"
-              className="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 active:scale-95"
-            >
-              Logout
-            </button>
-          </form>
+<form action={logout}>
+  <button
+    type="submit"
+    className="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200 active:scale-95"
+  >
+    Logout
+  </button>
+</form>
 
         </div>
       )}

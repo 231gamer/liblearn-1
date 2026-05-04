@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { calculateScore, calculateLevel } from '@/lib/quiz-engine/scorer'
+import { validateAnswers } from '@/lib/quiz-engine/validator'
 
 export async function submitQuiz(formData: FormData) {
   const supabase = await createClient()
@@ -13,55 +15,100 @@ export async function submitQuiz(formData: FormData) {
   if (!user) redirect('/auth/login')
 
   const quizId = formData.get('quiz_id') as string
-  const totalQuestions = parseInt(formData.get('total_questions') as string)
+  const totalQuestionsRaw = formData.get('total_questions') as string
+  const questionIdsRaw = formData.get('question_ids') as string
 
-  // Fetch correct answers for this quiz
+  if (!quizId || !totalQuestionsRaw || !questionIdsRaw) redirect('/quiz')
+
+  const questionIds = questionIdsRaw.split(',').filter(Boolean)
+
+  // Validate submitted answers server-side
+  const { valid, answers, error } = validateAnswers(formData, questionIds)
+
+  if (!valid) {
+    console.error('Answer validation failed:', error)
+    redirect('/quiz')
+  }
+
+  // Fetch correct answers server-side only — never sent to client
   const { data: questions } = await supabase
     .from('questions')
     .select('id, correct_answer')
     .eq('quiz_id', quizId)
+    .in('id', questionIds)
 
-  if (!questions) redirect('/quiz')
+  if (!questions || questions.length === 0) redirect('/quiz')
 
-  // Calculate score
-  let score = 0
-  questions.forEach((q) => {
-    const userAnswer = formData.get(`answer_${q.id}`) as string
-    if (userAnswer === q.correct_answer) score++
-  })
+  const correctAnswers: Record<string, string> = {}
+  for (const q of questions) {
+    correctAnswers[q.id] = q.correct_answer
+  }
 
-  // Calculate XP earned (proportional to score)
+  // Fetch quiz XP reward
   const { data: quiz } = await supabase
     .from('quizzes')
     .select('xp_reward')
     .eq('id', quizId)
     .single()
 
-  const xpEarned = Math.round((score / totalQuestions) * (quiz?.xp_reward ?? 10))
+  // Check for best previous attempt
+  const { data: bestPrevious } = await supabase
+    .from('quiz_attempts')
+    .select('xp_earned')
+    .eq('user_id', user.id)
+    .eq('quiz_id', quizId)
+    .order('xp_earned', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  // Save attempt
+  const isFirstAttempt = !bestPrevious
+  const bestPreviousXp = bestPrevious?.xp_earned ?? 0
+
+  // Calculate score using centralized engine
+  // Always pass isFirstAttempt=true to get the raw XP value
+  // We'll handle the best-score logic ourselves below
+  const result = calculateScore({
+    answers,
+    correctAnswers,
+    xpReward: quiz?.xp_reward ?? 10,
+    isFirstAttempt: true, // calculate raw XP always
+  })
+
+  // Best-score XP logic:
+  // If this attempt earned more than the best previous → award the DIFFERENCE
+  // If this attempt earned less or equal → award 0 (no regression)
+  let xpToAward = 0
+  if (result.xpEarned > bestPreviousXp) {
+    xpToAward = result.xpEarned - bestPreviousXp
+  }
+
+  // Save attempt with actual XP earned this attempt (for records)
   await supabase.from('quiz_attempts').insert({
     user_id: user.id,
     quiz_id: quizId,
-    score,
-    total_questions: totalQuestions,
-    xp_earned: xpEarned,
+    score: result.score,
+    total_questions: result.total,
+    xp_earned: result.xpEarned,
   })
 
-  // Update profile XP and level
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('xp, level')
-    .eq('id', user.id)
-    .single()
+  // Only update profile XP if there is a positive delta
+  if (xpToAward > 0) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('xp')
+      .eq('id', user.id)
+      .single()
 
-  const newXp = (profile?.xp ?? 0) + xpEarned
-  const newLevel = Math.floor(newXp / 100) + 1
+    const newXp = (profile?.xp ?? 0) + xpToAward
+    const newLevel = calculateLevel(newXp)
 
-  await supabase
-    .from('profiles')
-    .update({ xp: newXp, level: newLevel })
-    .eq('id', user.id)
+    await supabase
+      .from('profiles')
+      .update({ xp: newXp, level: newLevel })
+      .eq('id', user.id)
+  }
 
-  redirect(`/quiz/${quizId}/result?score=${score}&total=${totalQuestions}&xp=${xpEarned}`)
+  redirect(
+    `/quiz/${quizId}/result?score=${result.score}&total=${result.total}&xp=${xpToAward}&first=${isFirstAttempt ? '1' : '0'}&perfect=${result.isPerfect ? '1' : '0'}`
+  )
 }
