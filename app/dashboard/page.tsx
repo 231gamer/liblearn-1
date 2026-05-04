@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getLevelProgress, xpForNextLevel } from '@/lib/quiz-engine/scorer'
-import type { Quiz, LeaderboardEntry } from '@/lib/types'
+import type { Quiz, LeaderboardEntry } from '@/lib/type'
 
 const difficultyColor: Record<string, string> = {
   easy: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',

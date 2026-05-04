@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import type { Quiz } from '@/lib/types'
+import type { Quiz } from '@/lib/type'
 
 // Max quizzes shown per subject before "View all" kicks in
 const PER_SUBJECT_LIMIT = 3

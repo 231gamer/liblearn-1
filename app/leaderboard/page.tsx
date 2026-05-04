@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import type { LeaderboardEntry } from '@/lib/types'
+import type { LeaderboardEntry } from '@/lib/type'
 
 function getMedalEmoji(rank: number): string {
   if (rank === 1) return '🥇'
