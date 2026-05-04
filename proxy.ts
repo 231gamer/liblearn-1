@@ -31,16 +31,17 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Route categories
   const protectedRoutes = ['/dashboard', '/quiz', '/leaderboard', '/profile', '/admin']
   const authRoutes = ['/auth/login', '/auth/signup']
   const setupRoute = '/profile/setup'
+  const adminRoute = '/admin'
 
   const isProtectedRoute = protectedRoutes.some((r) => pathname.startsWith(r))
   const isAuthRoute = authRoutes.some((r) => pathname.startsWith(r))
   const isSetupRoute = pathname === setupRoute
+  const isAdminRoute = pathname.startsWith(adminRoute)
 
-  // Not logged in → redirect to login
+  // Not logged in → login
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
@@ -48,7 +49,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Logged in → redirect away from auth pages
+  // Logged in → away from auth pages
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
@@ -56,17 +57,23 @@ export async function middleware(request: NextRequest) {
   }
 
   // Logged in but no username → force setup
-  // (skip if already on setup page to avoid redirect loop)
   if (user && isProtectedRoute && !isSetupRoute) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, is_admin')
       .eq('id', user.id)
       .maybeSingle()
 
     if (!profile?.username) {
       const url = request.nextUrl.clone()
       url.pathname = setupRoute
+      return NextResponse.redirect(url)
+    }
+
+    // Admin route — check is_admin flag
+    if (isAdminRoute && !profile?.is_admin) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
   }

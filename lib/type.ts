@@ -5,6 +5,7 @@ export type Profile = {
   avatar_url: string | null
   xp: number
   level: number
+  is_admin?: boolean
   created_at: string
 }
 
@@ -47,4 +48,5 @@ export type LeaderboardEntry = {
   xp: number
   level: number
   rank: number
+  attempt_count?: number
 }
